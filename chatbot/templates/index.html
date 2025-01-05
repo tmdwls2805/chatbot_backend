@@ -101,15 +101,19 @@
 			</div>
 			<div id="gpt-4-sub" class="sub-content">
 				<button id="export-4">GPT-4 대화 내용 엑셀 다운로드</button>
+				<button id="autoTest-4">GPT-4 문서 자동 테스트</button>
 			</div>
 			<div id="gpt-4-turbo-sub" class="sub-content">
 				<button id="export-4-turbo">GPT-4 Turbo 대화 내용 엑셀 다운로드</button>
+				<button id="autoTest-4-turbo">GPT-4 Turbo 문서 자동 테스트</button>
 			</div>
 			<div id="gpt-4o-sub" class="sub-content">
 				<button id="export-4o">GPT-4o 대화 내용 엑셀 다운로드</button>
+				<button id="autoTest-4o">GPT-4o 문서 자동 테스트</button>
 			</div>
 			<div id="gpt-4o-mini-sub" class="sub-content">
 				<button id="export-4o-mini">GPT-4o-mini 대화 내용 엑셀 다운로드</button>
+				<button id="autoTest-4o-mini">GPT-4o-mini 문서 자동 테스트</button>
 			</div>
 		</div> 
 	</div>
@@ -146,7 +150,7 @@
 		if(document.getElementById(tabName + '-sub')) { // 존재 확인
         document.getElementById(tabName + '-sub').style.display = "block";
         document.getElementById(tabName + '-sub').classList.add("active");
-    }
+    	}
 	}
 	openTab('gpt-3');  // 초기 탭 설정
 	var dialogues3t = [];
@@ -215,13 +219,34 @@
 	});
 
 	// 함수를 통해 Excel 파일 생성 과정을 공통화
-	function exportToExcel(dialogues, sheetName) {
-		var ws = XLSX.utils.json_to_sheet(dialogues);
+	function exportToExcel(data, sheetName) {
+		var ws = XLSX.utils.json_to_sheet(data);
 		var wb = XLSX.utils.book_new();
 		XLSX.utils.book_append_sheet(wb, ws, sheetName);
 		XLSX.writeFile(wb, sheetName + '.xlsx');
-		if (typeof callback === 'function') callback();
 	}
+
+	function exportToExcelSheet(lists, sheetNameList, fileName) {
+		if (!Array.isArray(lists) || !Array.isArray(sheetNameList)) {
+			console.error("Invalid arguments: Both lists and sheetNameList should be arrays.");
+			return;
+		}
+
+		if (lists.length !== sheetNameList.length) {
+			console.error("Mismatched lengths: lists and sheetNameList must have the same length.");
+			return;
+		}
+
+		var wb = XLSX.utils.book_new(); // 새 워크북 생성
+
+		for (let i = 0; i < sheetNameList.length; i++) {
+			var ws = XLSX.utils.json_to_sheet(lists[i]); // 리스트 데이터를 시트로 변환
+			XLSX.utils.book_append_sheet(wb, ws, sheetNameList[i]); // 워크북에 시트 추가
+		}
+
+		XLSX.writeFile(wb, fileName + '.xlsx'); // 파일 저장 (하나의 파일로)
+	}
+
 	// 각 버튼 클릭 시 해당 데이터를 사용하여 Excel 파일 생성
 	$(document).on('click', '#export-3', function() {
 		exportToExcel(dialogues3t, "gpt-3-turbo");
@@ -244,93 +269,119 @@
 	});
 
 	$(document).ready(function () {
-		$(document).on('click', '#autoTest-3', function () {
-			// AJAX 요청
-			$.ajax({
-				url: '/api/read-txt-files', // Django URL 패턴에 매칭되는 URL
-				type: 'GET', // HTTP 메소드
-				dataType: 'json', // 데이터 타입
-				success: function (data) {
-					if (Array.isArray(data.response) && data.response.length > 0) {
-						console.log('Data received:', data.response);
+		function handleAutoTest(buttonId, responseId, excelFileName) {
+			$(document).on('click', buttonId, function () {
+				// AJAX 요청
+				let allDataForExcel = [];
+				$.ajax({
+					url: '/api/read-txt-files', // Django URL 패턴에 매칭되는 URL
+					type: 'GET', // HTTP 메소드
+					dataType: 'json', // 데이터 타입
+					success: function (data) {
+						if (Array.isArray(data.response) && data.response.length > 0) {
+							console.log('Data received:', data.response);
+							console.log('Files', data.files);
 
-						// 각 내부 리스트 처리
-						processNestedLists(data.response);
-					} else {
-						console.log('No data found or response is not an array');
+							// 각 내부 리스트 처리
+							processNestedLists(data.response, data.files, buttonId);
+						} else {
+							console.log('No data found or response is not an array');
+						}
+					},
+					error: function (error) {
+						console.log('Error:', error);
 					}
-				},
-				error: function (error) {
-					console.log('Error:', error);
-				}
-			});
+				});
 
-			// 내부 리스트를 처리하는 함수
-			function processNestedLists(nestedLists) {
-				let outerIndex = 0;
+				// 내부 리스트를 처리하는 함수
+				function processNestedLists(nestedLists, files, buttonId) {
+					let outerIndex = 0;
 
-				function processOuterList() {
-					if (outerIndex < nestedLists.length) {
-						const currentList = nestedLists[outerIndex];
-						if (Array.isArray(currentList)) {
-							console.log(`Processing List ${outerIndex + 1}/${nestedLists.length}:`, currentList);
+					function processOuterList() {
+						if (outerIndex < nestedLists.length) {
+							const currentList = nestedLists[outerIndex];
+							if (Array.isArray(currentList)) {
+								console.log(`Processing List ${outerIndex + 1}/${nestedLists.length}:`, currentList);
 
-							// `#response-3` 초기화
-							$('#response-3').empty();
-							// 현재 리스트 값을 표시
-							// currentList.forEach(item => {
-							// 	$('#response-3').append(`<p>${item}</p>`);
-							// });
+								// 결과 표시 영역 초기화
+								$(responseId).empty();
+								// 현재 리스트 값을 표시
+								// currentList.forEach(item => {
+								// 	$('#response-3').append(`<p>${item}</p>`);
+								// });
 
-							// 내부 리스트 값 처리
-							processSequentially(currentList, function () {
+								// 내부 리스트 값 처리
+								processSequentially(currentList, function () {
+									outerIndex++;
+									processOuterList(); // 다음 리스트로 이동
+								});
+							} else {
+								console.log(`List at index ${outerIndex} is not an array`);
 								outerIndex++;
 								processOuterList(); // 다음 리스트로 이동
-							});
+							}
 						} else {
-							console.log(`List at index ${outerIndex} is not an array`);
-							outerIndex++;
-							processOuterList(); // 다음 리스트로 이동
+							console.log('All lists processed.');
+
+							exportToExcelSheet(allDataForExcel, files, excelFileName);
+						}	
+					}
+
+					// 첫 번째 리스트 처리 시작
+					processOuterList();
+				}
+
+				// 순차적으로 데이터를 처리하는 함수
+				function processSequentially(list, callback) {
+					let index = 0;
+					function processNext() {
+						if (index < list.length) {
+							const currentItem = list[index];
+							console.log(`Processing Item ${index + 1}/${list.length}:`, currentItem);
+
+							// 값을 입력 필드에 설정
+							$('#prompt').val(currentItem);
+
+							// "엔터" 이벤트 시뮬레이션
+							$('#prompt').trigger($.Event('keypress', { keyCode: 13 }));
+
+							// 다음 아이템으로 이동 (3초 대기 후 처리)
+							index++; // 다음 아이템으로 이동
+							setTimeout(processNext, 3000); // 3초 대기 후 재귀 호출
+						} else {
+							console.log('Current list processed.');
+							if (buttonId === '#autoTest-3') {
+								allDataForExcel.push(dialogues3t); // 대화 내용 저장
+								dialogues3t = []; // 대화 내용 초기화
+							} else if (buttonId === '#autoTest-4') {
+								allDataForExcel.push(dialogues4); // 대화 내용 저장
+								dialogues4 = []; // 대화 내용 초기화
+							} else if (buttonId === '#autoTest-4-turbo') {
+								allDataForExcel.push(dialogues4t); // 대화 내용 저장
+								dialogues4t	= []; // 대화 내용 초기화
+							} else if (buttonId === '#autoTest-4o') {
+								allDataForExcel.push(dialogues4o); // 대화 내용 저장
+								dialogues4o = []; // 대화 내용 초기화
+							} else if (buttonId === '#autoTest-4o-mini') {
+								allDataForExcel.push(dialogues4om); // 대화 내용 저장
+								dialogues4om = []; // 대화 내용 초기화
+							}
+							if (typeof callback === 'function') callback(); // 리스트 처리 완료 후 콜백 호출
 						}
-					} else {
-						console.log('All lists processed.');
 					}
+					// 첫 번째 아이템 처리 시작
+					setTimeout(processNext, 3000);
 				}
-
-				// 첫 번째 리스트 처리 시작
-				processOuterList();
-			}
-
-			// 순차적으로 데이터를 처리하는 함수
-			function processSequentially(list, callback) {
-				let index = 0;
-
-				function processNext() {
-					if (index < list.length) {
-						const currentItem = list[index];
-						console.log(`Processing Item ${index + 1}/${list.length}:`, currentItem);
-
-						// 값을 입력 필드에 설정
-						$('#prompt').val(currentItem);
-
-						// "엔터" 이벤트 시뮬레이션
-						$('#prompt').trigger($.Event('keypress', { keyCode: 13 }));
-
-						// 다음 아이템으로 이동 (5초 대기 후 처리)
-						index++; // 다음 아이템으로 이동
-						setTimeout(processNext, 3000); // 5초 대기 후 재귀 호출
-					} else {
-						console.log('Current list processed.');
-						exportToExcel(dialogues3t, "gpt-3-turbo"); // 엑셀 다운로드
-						if (typeof callback === 'function') callback(); // 리스트 처리 완료 후 콜백 호출
-						dialogues3t = []; // 대화 내용 초기화
-					}
-				}
-				// 첫 번째 아이템 처리 시작
-				processNext();
-			}
-		});
+			});
+		}
+		// 테스트 자동화 버튼
+		handleAutoTest('#autoTest-3', '#response-3', 'gpt-3-turbo');
+		handleAutoTest('#autoTest-4', '#response-4', 'gpt-4');
+		handleAutoTest('#autoTest-4-turbo', '#response-4-turbo', 'gpt-4-turbo');
+		handleAutoTest('#autoTest-4o', '#response-4o', 'gpt-4o');
+		handleAutoTest('#autoTest-4o-mini', '#response-4o-mini', 'gpt-4o-mini');
 	});
+
 	</script>
 
 </body> 

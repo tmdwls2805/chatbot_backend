@@ -112,5 +112,5 @@ def read_txt_files(request):
                 contents = [line.strip() for line in f]
                 all_contents.append(contents)
 
-        return JsonResponse({'response': all_contents}, safe=False)
+        return JsonResponse({'response': all_contents, 'files': txt_files}, safe=False)
     return render(request, 'index.html')
