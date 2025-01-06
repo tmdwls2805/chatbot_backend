@@ -176,8 +176,17 @@
 				success: function(data) { 
 					$(responseContainerId).append('<p>('+ time + ') 로봇: ' + data.response + '</p>');
 					dialogueList.push({Time: time, User: prompt, Robot: data.response});
+					onFormSubmitCompleted();
+				},
+				error: function(error) {
+					console.log('AJAX call failed:', error);
+					onFormSubmitCompleted();
 				}
 			});
+		}
+
+		function onFormSubmitCompleted() {
+			console.log('Form submission and related tasks completed.');
 		}
 
 		function getActiveTabName() {
@@ -268,23 +277,55 @@
 		exportToExcel(dialogues4om, "gpt-4o-mini");
 	});
 
+	function triggerKeyPress() {
+		return new Promise((resolve) => {
+			$('#prompt').trigger($.Event('keypress', { keyCode: 13 }));
+			setTimeout(() => {
+				console.log("Enter key press simulation completed.");
+				resolve(); // Promise 완료
+			}, 3000); // 3초 대기
+		});
+	}
+
 	$(document).ready(function () {
-		function handleAutoTest(buttonId, responseId, excelFileName) {
+		function handleAutoTest(buttonId) {
+			var tabConfig = {
+				'#autoTest-3': {
+					responseId: '#response-3',
+					apiEndpoint: '/api/gpt-3-turbo',
+					excelFileName: 'gpt-3-turbo',
+				},
+				'#autoTest-4': {
+					responseId: '#response-4',
+					apiEndpoint: '/api/gpt-4',
+					excelFileName: 'gpt-4',
+				},
+				'#autoTest-4-turbo': {
+					responseId: '#response-4-turbo',
+					apiEndpoint: '/api/gpt-4-turbo',
+					excelFileName: 'gpt-4-turbo',
+				},
+				'#autoTest-4o': {
+					responseId: '#response-4o',
+					apiEndpoint: '/api/gpt-4o',
+					excelFileName: 'gpt-4o',
+				},
+				'#autoTest-4o-mini': {
+					responseId: '#response-4o-mini',
+					apiEndpoint: '/api/gpt-4o-mini',
+					excelFileName: 'gpt-4o-mini',
+				},
+			};
+			var config = tabConfig[buttonId];
+			var csrftoken = Cookies.get('csrftoken');  // CSRF 토큰 가져오기
+			$.ajaxSetup({ 
+				headers: { 'X-CSRFToken': csrftoken }  // CSRF 토큰 설정
+			});
+
 			$(document).on('click', buttonId, function () {
-				// 대화 내용 초기화
-				if (buttonId === '#autoTest-3') {
-					dialogues3t = [];
-				} else if (buttonId === '#autoTest-4') {
-					dialogues4 = [];
-				} else if (buttonId === '#autoTest-4-turbo') {
-					dialogues4t = [];
-				} else if (buttonId === '#autoTest-4o') {
-					dialogues4o = [];
-				} else if (buttonId === '#autoTest-4o-mini') {
-					dialogues4om = [];
-				}
-				// AJAX 요청
+				// AJAX 요청을 통해 텍스트 파일 데이터 가져오기
 				let allDataForExcel = [];
+				let dialogueList = [];
 				$.ajax({
 					url: '/api/read-txt-files', // Django URL 패턴에 매칭되는 URL
 					type: 'GET', // HTTP 메소드
@@ -295,7 +336,7 @@
 							console.log('Files', data.files);
 
 							// 각 내부 리스트 처리
-							processNestedLists(data.response, data.files, buttonId);
+							processNestedLists(data, config, dialogueList);
 						} else {
 							console.log('No data found or response is not an array');
 						}
@@ -306,25 +347,23 @@
 				});
 
 				// 내부 리스트를 처리하는 함수
-				function processNestedLists(nestedLists, files, buttonId) {
+				function processNestedLists(data, config, dialogueList) {
 					let outerIndex = 0;
-
+					// 대화 내용 초기화
+					var nestedLists = data.response;
 					function processOuterList() {
 						if (outerIndex < nestedLists.length) {
 							const currentList = nestedLists[outerIndex];
 							if (Array.isArray(currentList)) {
+								dialogueList = []; // 대화 내용 초기화
+								$(config.responseId).empty(); // 결과 표시 영역 초기화
 								console.log(`Processing List ${outerIndex + 1}/${nestedLists.length}:`, currentList);
 
-								// 결과 표시 영역 초기화
-								$(responseId).empty();
-								// 현재 리스트 값을 표시
-								// currentList.forEach(item => {
-								// 	$('#response-3').append(`<p>${item}</p>`);
-								// });
-
-								// 내부 리스트 값 처리
-								processSequentially(currentList, function () {
+								// 내부 리스트 순차 처리 시작
+								processSequentially(currentList, config, dialogueList, function () {
 									outerIndex++;
+									config;
+									dialogueList;
 									processOuterList(); // 다음 리스트로 이동
 								});
 							} else {
@@ -334,8 +373,7 @@
 							}
 						} else {
 							console.log('All lists processed.');
-
-							exportToExcelSheet(allDataForExcel, files, excelFileName);
+							exportToExcelSheet(allDataForExcel, data.files, config.excelFileName);
 						}	
 					}
 
@@ -344,42 +382,42 @@
 				}
 
 				// 순차적으로 데이터를 처리하는 함수
-				function processSequentially(list, callback) {
+				function processSequentially(list, config, dialogueList, callback) {
 					let index = 0;
 					function processNext() {
 						if (index < list.length) {
 							const currentItem = list[index];
 							console.log(`Processing Item ${index + 1}/${list.length}:`, currentItem);
-
 							// 값을 입력 필드에 설정
 							$('#prompt').val(currentItem);
-
+							var dateTime = new Date(); 
+							var time = dateTime.toLocaleTimeString();
+							$(config.responseId).append('<p>('+ time + ') 사용자: ' + currentItem + '</p>');
+							$('#prompt').val('');  // 입력 필드 초기화
 							// "엔터" 이벤트 시뮬레이션
-							$('#prompt').trigger($.Event('keypress', { keyCode: 13 }));
-
-							// 다음 아이템으로 이동 (3초 대기 후 처리)
-							index++; // 다음 아이템으로 이동
-							setTimeout(processNext, 3000); // 3초 대기 후 재귀 호출
+							$.ajax({
+								url: config.apiEndpoint,
+								type: 'POST',
+								data: { prompt: currentItem },
+								dataType: 'json',
+								success: function (data) {
+									$(config.responseId).append('<p>('+ time + ') 로봇: ' + data.response + '</p>');
+									dialogueList.push({Time: time, User: currentItem, Robot: data.response});
+									index++;
+									setTimeout(processNext, 1000);
+								},
+								error: function (error) {
+									console.log('AJAX call failed:', error);
+									ErrorEvent;
+								}
+							});
+							console.log(dialogueList);
 						} else {
 							console.log('Current list processed.');
 							// 대화 내용을 엑셀 데이터에 추가
-							if (buttonId === '#autoTest-3') {
-								allDataForExcel.push(dialogues3t);
-								// 대화 내용 초기화
-								dialogues3t = [];
-							} else if (buttonId === '#autoTest-4') {
-								allDataForExcel.push(dialogues4);
-								dialogues4 = [];
-							} else if (buttonId === '#autoTest-4-turbo') {
-								allDataForExcel.push(dialogues4t);
-								dialogues4t	= [];
-							} else if (buttonId === '#autoTest-4o') {
-								allDataForExcel.push(dialogues4o);
-								dialogues4o = [];
-							} else if (buttonId === '#autoTest-4o-mini') {
-								allDataForExcel.push(dialogues4om);
-								dialogues4om = [];
-							}
+							allDataForExcel.push(dialogueList);
+							console.log('All data for Excel:', allDataForExcel);
+							dialogueList = []; // 대화 내용 초기화
 							if (typeof callback === 'function') callback(); // 리스트 처리 완료 후 콜백 호출
 						}
 					}
@@ -389,11 +427,11 @@
 			});
 		}
 		// 테스트 자동화 버튼
-		handleAutoTest('#autoTest-3', '#response-3', 'gpt-3-turbo');
-		handleAutoTest('#autoTest-4', '#response-4', 'gpt-4');
-		handleAutoTest('#autoTest-4-turbo', '#response-4-turbo', 'gpt-4-turbo');
-		handleAutoTest('#autoTest-4o', '#response-4o', 'gpt-4o');
-		handleAutoTest('#autoTest-4o-mini', '#response-4o-mini', 'gpt-4o-mini');
+		handleAutoTest('#autoTest-3');
+		handleAutoTest('#autoTest-4');
+		handleAutoTest('#autoTest-4-turbo');
+		handleAutoTest('#autoTest-4o');
+		handleAutoTest('#autoTest-4o-mini');
 	});
 
 	</script>
