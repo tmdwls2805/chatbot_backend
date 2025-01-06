@@ -28,7 +28,7 @@
 			transition: background-color 0.3s; /* 배경색 변경 시 애니메이션 적용 */
 		}
 	</style>
-</head> 
+</head>
 <body>
 	<div class="container p-3"> 
 		<h3>Prompt Test</h3>
@@ -165,7 +165,7 @@
 		function handlePrompt(responseContainerId, urls, dialogueList) {
 			var prompt = $('#prompt').val(); 
 			var dateTime = new Date(); 
-			var time = dateTime.toLocaleTimeString(); 
+			var time = dateTime.toLocaleTimeString();
 			$(responseContainerId).append('<p>('+ time + ') 사용자: ' + prompt + '</p>'); 
 			$('#prompt').val('');  // 입력 필드 초기화
 			$.ajax({ 
@@ -271,6 +271,18 @@
 	$(document).ready(function () {
 		function handleAutoTest(buttonId, responseId, excelFileName) {
 			$(document).on('click', buttonId, function () {
+				// 대화 내용 초기화
+				if (buttonId === '#autoTest-3') {
+					dialogues3t = [];
+				} else if (buttonId === '#autoTest-4') {
+					dialogues4 = [];
+				} else if (buttonId === '#autoTest-4-turbo') {
+					dialogues4t = [];
+				} else if (buttonId === '#autoTest-4o') {
+					dialogues4o = [];
+				} else if (buttonId === '#autoTest-4o-mini') {
+					dialogues4om = [];
+				}
 				// AJAX 요청
 				let allDataForExcel = [];
 				$.ajax({
@@ -350,21 +362,23 @@
 							setTimeout(processNext, 3000); // 3초 대기 후 재귀 호출
 						} else {
 							console.log('Current list processed.');
+							// 대화 내용을 엑셀 데이터에 추가
 							if (buttonId === '#autoTest-3') {
-								allDataForExcel.push(dialogues3t); // 대화 내용 저장
-								dialogues3t = []; // 대화 내용 초기화
+								allDataForExcel.push(dialogues3t);
+								// 대화 내용 초기화
+								dialogues3t = [];
 							} else if (buttonId === '#autoTest-4') {
-								allDataForExcel.push(dialogues4); // 대화 내용 저장
-								dialogues4 = []; // 대화 내용 초기화
+								allDataForExcel.push(dialogues4);
+								dialogues4 = [];
 							} else if (buttonId === '#autoTest-4-turbo') {
-								allDataForExcel.push(dialogues4t); // 대화 내용 저장
-								dialogues4t	= []; // 대화 내용 초기화
+								allDataForExcel.push(dialogues4t);
+								dialogues4t	= [];
 							} else if (buttonId === '#autoTest-4o') {
-								allDataForExcel.push(dialogues4o); // 대화 내용 저장
-								dialogues4o = []; // 대화 내용 초기화
+								allDataForExcel.push(dialogues4o);
+								dialogues4o = [];
 							} else if (buttonId === '#autoTest-4o-mini') {
-								allDataForExcel.push(dialogues4om); // 대화 내용 저장
-								dialogues4om = []; // 대화 내용 초기화
+								allDataForExcel.push(dialogues4om);
+								dialogues4om = [];
 							}
 							if (typeof callback === 'function') callback(); // 리스트 처리 완료 후 콜백 호출
 						}
