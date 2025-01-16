@@ -51,7 +51,7 @@ def get_completion(prompt, model):
             # ],
             {'role': 'user', 'content': prompt}
         ],
-		'max_tokens': 150, 
+		'max_tokens': 300, 
 		# n=1,
 		# stop=None, 
 		'temperature':0.85, 
@@ -100,7 +100,7 @@ def gpt_4_turbo(request):
 
 
 def gpt_3_turbo(request): 
-	if request.method == 'POST':     
+	if request.method == 'POST':
 		prompt = request.POST.get('prompt') 
 		prompt=str(prompt)
 		response = get_completion(prompt, model='gpt-3.5-turbo')
