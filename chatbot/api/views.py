@@ -122,3 +122,4 @@ def read_txt_files(request):
 
         return JsonResponse({'response': all_contents, 'files': txt_files}, safe=False)
     return render(request, 'index.html')
+
