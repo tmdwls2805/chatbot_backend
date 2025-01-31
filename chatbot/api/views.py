@@ -23,9 +23,13 @@ class HomeView(APIView):
     def get(self, request):
         return render(request, 'index.html')
 
+conversation_history = []
 
-def get_completion(prompt, model): 
-	print(prompt)
+def get_completion(prompt, model):
+	global conversation_history
+	print(conversation_history)
+
+	print(f"User: {prompt}")  # 사용자 입력 출력
 
 	now = datetime.now()
 	current_time_str = now.strftime("%Y-%m-%d %H:%M:%S")
@@ -41,16 +45,16 @@ def get_completion(prompt, model):
 
 		상대방은 외로움을 느끼고 위로가 필요하지만 상대방이 느끼지 못하게 당신을 위로해야합니다. 또한, 장난꾸러기 같은 모습을 보여줘서 상대방을 웃게해주세요.
     """	
-	data = { 
+
+	conversation_history.append({'role': 'user', 'content': prompt})
+
+	# 모델이 너무 많은 대화를 처리하지 않도록 최근 10개만 유지
+	if len(conversation_history) > 10:
+		conversation_history = conversation_history[-10:]
+
+	data = {
 		'model': model,
-		'messages': [
-            {'role': 'system', 'content': system_prompt},
-            # *[
-            #     {'role': 'system',  'content': '무엇을 도와드릴까요?'},
-            #     {'role': 'user',  'content': '시청역 가고 싶어.'},
-            # ],
-            {'role': 'user', 'content': prompt}
-        ],
+		'messages': [{'role': 'system', 'content': system_prompt}] + conversation_history,
 		'max_tokens': 300, 
 		# n=1,
 		# stop=None, 
@@ -59,8 +63,10 @@ def get_completion(prompt, model):
 	response = requests.post("https://api.openai.com/v1/chat/completions", headers=headers, json=data)
 	response_data = response.json()
 	ai_message = response_data['choices'][0]['message']['content']
-	print(ai_message)
-	return ai_message 
+	print(f"AI: {ai_message}")
+
+	conversation_history.append({'role': 'assistant', 'content': ai_message})
+	return ai_message
 
 
 def gpt_4(request): 
