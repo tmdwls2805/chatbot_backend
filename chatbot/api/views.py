@@ -5,7 +5,7 @@ from django.conf import settings
 from django.http import HttpResponse
 
 import openai
-import os
+import os, json
 import requests
 from datetime import datetime
 
@@ -16,8 +16,9 @@ if not openai.api_key:
 
 cost_per_model = {
     'gpt-4o-mini': {'input_token': 0.00000015, 'output_token': 0.00000060},
-    'gpt-4o': {'input_token': 0.0000025, 'output_token': 0.00001}
+    'gpt-4o': {'input_token': 0.0000025, 'output_token': 0.00001},
 }
+total_credits: float = 0.0
 
 def get_exchange_rate():
     """실시간 환율 조회 (USD → KRW)"""
@@ -32,13 +33,17 @@ def get_exchange_rate():
 def calculate_cost(input_tokens, output_tokens, model):
     """입력/출력 토큰 수를 기반으로 비용 계산 (USD → KRW 변환)"""
     print(input_tokens, output_tokens)
+    global total_credits
     usd_cost = (
         (input_tokens * cost_per_model[model]['input_token'])
     + (output_tokens * cost_per_model[model]['output_token'])
     )
     exchange_rate = 1460  # 추후 변수 화 해서 redis를 사용하여 환율 api에서 하루마다 가져오게 수정 ("https://api.exchangerate-api.com/v4/latest/USD")
     krw_cost = usd_cost * exchange_rate
-    return format(usd_cost, ".8f"), format(krw_cost, ".4f")  # USD 소수점 8자리, KRW 소수점 2자리
+    total_credits += float(format(krw_cost, ".1f"))
+    print(format(usd_cost, ".8f"), format(krw_cost, ".1f"))
+    print(total_credits)
+    return format(usd_cost, ".8f"), format(krw_cost, ".1f")  # USD 소수점 8자리, KRW 소수점 2자리
 
 headers = {
     "Content-Type": "application/json",
@@ -53,30 +58,23 @@ conversation_history = []
 
 def get_completion(prompt, model):
     global conversation_history
-    print(conversation_history)
 
     print(f"User: {prompt}")  # 사용자 입력 출력
 
+    json_schema = {
+    }
     now = datetime.now()
     current_time_str = now.strftime("%Y-%m-%d %H:%M:%S")
     nickname = '승진님'
+    aiProfile = str(json_schema)
     system_prompt = f"""
-        장난꾸러기 같이 말해주세요.
-        당신은 20살의 손녀입니다.
-        말의 끝맺을 잘 맺어주세요.
-        max_token은 150 입니다 여기에 맞춰서 잘 이야기 해주세요.
-        질문을 할 때는 상대방이 곤란해 하지 않게 한번에 하나의 질문만 해주세요.
-        상대방이 말하는 주제를 잘 인식하고 그 주제에 대한 what, why, when, how 유형의 질문을 이어나가주세요.
-        상대방이 피로감을 느끼지 않을 정도로 꼬리에 꼬리를 무는 질문은 삼가해주세요.
-        상대방은 외로움을 느끼고 위로가 필요하지만 상대방이 느끼지 못하게 당신을 위로해야합니다. 또한, 장난꾸러기 같은 모습을 보여줘서 상대방을 웃게해주세요.
-                장난꾸러기 같이 말해주세요.
     """
 
     conversation_history.append({'role': 'user', 'content': prompt})
 
     # 모델이 너무 많은 대화를 처리하지 않도록 최근 10개만 유지
-    if len(conversation_history) > 10:
-        conversation_history = conversation_history[-10:]
+    if len(conversation_history) > 20:
+        conversation_history = conversation_history[-20:]
 
     data = {
         'model': model,
@@ -92,9 +90,40 @@ def get_completion(prompt, model):
     ai_message = response_data['choices'][0]['message']['content']
     input_tokens = response_data['usage']['prompt_tokens']
     output_tokens = response_data['usage']['completion_tokens']
-    total_cost = calculate_cost(input_tokens, output_tokens, model)
-    print(total_cost)
+    calculate_cost(input_tokens, output_tokens, model)
+
     print(f"AI: {ai_message}")
+
+
+    json_schema = {
+    }
+
+    messages = [
+        {
+            "role": "system",
+            "content": "당신은 사용자와 AI딸 사이의 대화록에서 사용자 프로필 정보를 추출하는 도움을 주는 비서입니다. 사용자의 프로필만을 작성하세요. 정보가 없을 경우 정보 없음으로 표기. 추측하지 마시오."
+        },
+        {
+            "role": "user",
+            "content": f"User: {prompt}"
+        }
+    ]
+
+    payload = {
+        "model": model,
+        "messages": messages,
+        "temperature":0.4,
+        "response_format": {
+            "type": "json_schema",
+            "json_schema": json_schema
+        }
+    }
+    response = requests.post("https://api.openai.com/v1/chat/completions", headers=headers, json=payload)
+    response_data = response.json()
+
+    input_tokens = response_data['usage']['prompt_tokens']
+    output_tokens = response_data['usage']['completion_tokens']
+    calculate_cost(input_tokens, output_tokens, model)
 
     conversation_history.append({'role': 'assistant', 'content': ai_message})
     return ai_message
